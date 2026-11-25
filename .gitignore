@@ -1,0 +1,37 @@
+# Secrets — NEVER commit seed phrases, private keys or API keys
+.env
+.env.*
+!.env.example
+*.skey
+*.vkey
+*.mnemonic
+seed*.txt
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+
+# Aiken
+contracts/cardano/build/
+contracts/cardano/artifacts/
+
+# Midnight / Compact
+contracts/midnight/managed/
+contracts/midnight/dist/
+midnight-level-db/
+
+# OS / editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+contracts/cardano/aiken-compile.lock
+
+# Personal AI/dev tool settings (keep local)
+.gemini/
+.impeccable/
+.claude/settings.local.json

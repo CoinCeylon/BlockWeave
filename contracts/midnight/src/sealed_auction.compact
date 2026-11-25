@@ -1,0 +1,127 @@
+// TeaTrail sealed-bid auction (Midnight / Compact)
+//
+// STATUS: DRAFT, NOT YET COMPILED. Person B: compile this with `compact compile`
+// first thing and fix syntax against the current Compact reference. Compare with
+// the official "Private reserve auction" example:
+// https://docs.midnight.network/examples/contracts/private-reserve-auction
+//
+// Why not just use that example as-is? In it, bid amounts and the highest bid
+// are public. TeaTrail needs bids that stay sealed, so we use:
+//
+//   1. BIDDING: each bidder stores only a commitment hash(amount, salt, pk).
+//      Nobody, not even the auctioneer, sees amounts. A ZK proof checks that
+//      the bid is at least the public reserve price without revealing it.
+//   2. REVEAL: the auctioneer lowers a public price threshold step by step.
+//      The first bidder whose sealed bid is >= the threshold proves it in ZK
+//      and calls claimWin(). Only that bidder and their bid get disclosed.
+//   3. CLOSED: losers never reveal anything. All anyone learns about them is
+//      "their bid was below the winning threshold".
+//
+// The client auto-claims as soon as threshold <= its own bid, so the highest
+// bid claims first. Waiting does not help: the winner pays their own bid.
+
+pragma language_version 0.28;
+
+import CompactStandardLibrary;
+
+export enum Phase {
+  BIDDING,
+  REVEAL,
+  CLOSED
+}
+
+// ---------------------------------------------------------------- ledger
+
+export ledger phase: Phase;
+export sealed ledger auctioneer: Bytes<32>;
+export sealed ledger lotId: Bytes<32>;          // Cardano lot NFT name
+export sealed ledger reservePrice: Uint<64>;    // LKR per kg, public
+export ledger commitments: Map<Bytes<32>, Bytes<32>>; // bidder pk -> commitment
+export ledger bidCount: Counter;
+export ledger threshold: Uint<64>;              // current reveal price
+export ledger winner: Bytes<32>;
+export ledger winningPrice: Uint<64>;
+
+// ---------------------------------------------------------------- witnesses
+// Implemented in TypeScript (src/witnesses.ts). Values never leave the
+// bidder's machine; only proofs about them do.
+
+witness localSk(): Bytes<32>;
+witness bidAmount(): Uint<64>;
+witness bidSalt(): Bytes<32>;
+
+// ---------------------------------------------------------------- helpers
+
+circuit publicKey(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "teatrail:pk:"), sk]);
+}
+
+circuit commitBid(amount: Uint<64>, salt: Bytes<32>, pk: Bytes<32>): Bytes<32> {
+  // TODO(B): if Uint<64> -> Bytes<32> cast is rejected, go via Field first.
+  return persistentHash<Vector<3, Bytes<32>>>([amount as Bytes<32>, salt, pk]);
+}
+
+circuit onlyAuctioneer(): [] {
+  assert(auctioneer == publicKey(localSk()), "Only the auctioneer");
+}
+
+// ---------------------------------------------------------------- lifecycle
+
+constructor(lot: Bytes<32>, reserve: Uint<64>) {
+  auctioneer = disclose(publicKey(localSk()));
+  lotId = disclose(lot);
+  reservePrice = disclose(reserve);
+  threshold = 0;
+  winningPrice = 0;
+  phase = Phase.BIDDING;
+}
+
+/// Submit (or replace) a sealed bid. Amount and salt stay private.
+export circuit placeBid(): [] {
+  assert(phase == Phase.BIDDING, "Bidding is closed");
+  assert(bidAmount() >= reservePrice, "Bid below reserve");
+  const pk = disclose(publicKey(localSk()));
+  const c = disclose(commitBid(bidAmount(), bidSalt(), pk));
+  if (!commitments.member(pk)) {
+    bidCount.increment(1);
+  }
+  commitments.insert(pk, c);
+}
+
+/// Auctioneer ends bidding and opens the reveal at a high starting price.
+export circuit startReveal(startPrice: Uint<64>): [] {
+  onlyAuctioneer();
+  assert(phase == Phase.BIDDING, "Not in bidding");
+  assert(disclose(startPrice) >= reservePrice, "Start below reserve");
+  threshold = disclose(startPrice);
+  phase = Phase.REVEAL;
+}
+
+/// Auctioneer lowers the threshold one step (the app does this on a timer).
+export circuit lowerThreshold(newPrice: Uint<64>): [] {
+  onlyAuctioneer();
+  assert(phase == Phase.REVEAL, "Not revealing");
+  assert(disclose(newPrice) < threshold, "Must go down");
+  assert(disclose(newPrice) >= reservePrice, "Below reserve");
+  threshold = disclose(newPrice);
+}
+
+/// A bidder proves their sealed bid is >= the current threshold and wins.
+export circuit claimWin(): [] {
+  assert(phase == Phase.REVEAL, "Not revealing");
+  const pk = disclose(publicKey(localSk()));
+  assert(commitments.member(pk), "No bid from you");
+  assert(commitments.lookup(pk) == commitBid(bidAmount(), bidSalt(), pk), "Bid mismatch");
+  assert(bidAmount() >= threshold, "Your bid is below the threshold");
+  winner = pk;
+  winningPrice = disclose(bidAmount());
+  phase = Phase.CLOSED;
+}
+
+/// Threshold reached the reserve and nobody claimed: no sale.
+export circuit closeNoSale(): [] {
+  onlyAuctioneer();
+  assert(phase == Phase.REVEAL, "Not revealing");
+  assert(threshold == reservePrice, "Lower to reserve first");
+  phase = Phase.CLOSED;
+}
