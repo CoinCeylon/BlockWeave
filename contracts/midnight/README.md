@@ -1,7 +1,7 @@
 # Midnight: sealed-bid auction (Person B)
 
-`src/sealed_auction.compact` is a **draft that has not been compiled yet**. The
-first job is to get it compiling, then deploy to Preprod.
+`src/sealed_auction.compact` **compiles** with Compact toolchain 0.36.1 (Preprod, ledger 9)
+and passes 11 local simulator tests. Next: deploy to Preprod from a CLI script.
 
 ## How the auction keeps bids secret
 
@@ -30,20 +30,31 @@ The client claims automatically, so the highest bid always claims first.
 3. Run one official example end to end first (zkloan or leaderboard), so you
    know your toolchain works before you debug our contract.
 
-## Build
+## Build and test (no wallet or network needed)
+
+Run inside WSL/Linux with `compact update 0.36.1` done:
 
 ```bash
 cd contracts/midnight
-compact compile src/sealed_auction.compact managed/sealed_auction
+npm install
+npm run compile:fast   # TypeScript only, a few seconds
+npm test               # 11 simulator tests: full auction, rule checks, privacy check
+npm run typecheck      # witnesses.ts against the generated types
+npm run compile        # full build with ZK proving keys (needed before deploying)
 ```
 
-Generated TypeScript lands in `managed/` (git-ignored). Point `src/witnesses.ts` at
-the generated types.
+Generated code lands in `managed/` (git-ignored). The full `compile` downloads ZK
+parameters from srs.midnight.network the first time.
+
+The tests run the real compiled circuits against an in-memory ledger. The privacy
+test checks that losing bid amounts appear nowhere in the public state, circuit
+inputs/outputs or public transcripts, and that the winning price does.
 
 ## This week's checklist
 
 - [ ] Toolchain + proof server running; an official example deployed to Preprod
-- [ ] `sealed_auction.compact` compiles
-- [ ] CLI script: deploy, 3 bids from 3 wallets, startReveal, lowerThreshold, claimWin
-- [ ] Confirm the losing amounts don't appear anywhere in the public ledger state
+- [x] `sealed_auction.compact` compiles (0.36.1)
+- [x] Local simulator tests: 3 bidders, reveal, claim, rule checks, privacy
+- [ ] CLI script on Preprod: deploy, 3 bidders (one funded wallet, 3 private states), startReveal, lowerThreshold, claimWin
+- [ ] Confirm on Preprod (indexer) what the simulator test already shows: losing amounts never appear
 - [ ] Hand Person C a small TS module: `deployAuction`, `placeBid`, `getState`, `claimWin`

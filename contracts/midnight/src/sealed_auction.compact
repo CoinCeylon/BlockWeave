@@ -1,8 +1,9 @@
 // TeaTrail sealed-bid auction (Midnight / Compact)
 //
-// STATUS: DRAFT, NOT YET COMPILED. Person B: compile this with `compact compile`
-// first thing and fix syntax against the current Compact reference. Compare with
-// the official "Private reserve auction" example:
+// STATUS: compiles with Compact toolchain 0.36.1 (language 0.28, Preprod ledger 9).
+// Logic covered by the local simulator tests in test/auction.test.mjs (11 passing).
+// Not deployed to Preprod yet. Based on, but different from, the official
+// "Private reserve auction" example:
 // https://docs.midnight.network/examples/contracts/private-reserve-auction
 //
 // Why not just use that example as-is? In it, bid amounts and the highest bid
@@ -57,7 +58,6 @@ circuit publicKey(sk: Bytes<32>): Bytes<32> {
 }
 
 circuit commitBid(amount: Uint<64>, salt: Bytes<32>, pk: Bytes<32>): Bytes<32> {
-  // TODO(B): if Uint<64> -> Bytes<32> cast is rejected, go via Field first.
   return persistentHash<Vector<3, Bytes<32>>>([amount as Bytes<32>, salt, pk]);
 }
 

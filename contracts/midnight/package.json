@@ -1,0 +1,17 @@
+{
+  "name": "teatrail-midnight",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "compact compile src/sealed_auction.compact managed/sealed_auction",
+    "compile:fast": "compact compile --skip-zk src/sealed_auction.compact managed/sealed_auction",
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit --strict --target es2022 --module nodenext --moduleResolution nodenext --skipLibCheck --lib es2022,dom src/witnesses.ts"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "0.21.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
