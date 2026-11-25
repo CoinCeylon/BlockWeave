@@ -195,7 +195,7 @@ export default function AuctionPage() {
             {!isAuctioneer && auction?.phase !== "BIDDING" && lot?.stage === "Brokered" && (
               <p className="text-sm text-muted">
                 {auction ? "Bidding is closed." : "Waiting for the auctioneer to open this auction."} Switch “Acting as” to
-                Colombo Tea Auction to run it.
+                Demo Auction House to run it.
               </p>
             )}
 

@@ -7,17 +7,17 @@ import type { AuctionState, Checkpoint, LotWithHistory, Party, Sale } from "../t
 import type { NewLotInput, TeaTrailSource } from "./index";
 
 export const PARTIES: Party[] = [
-  { id: "estate-pedro", name: "Pedro Estate, Nuwara Eliya", role: "estate" },
-  { id: "estate-kenilworth", name: "Kenilworth Estate, Dimbula", role: "estate" },
-  { id: "factory-pedro", name: "Pedro Tea Factory", role: "factory" },
-  { id: "broker-ceylon", name: "Ceylon Tea Brokers PLC", role: "broker" },
-  { id: "auction-cta", name: "Colombo Tea Auction", role: "auctioneer" },
-  { id: "exporter-lanka", name: "Lanka Leaf Exports", role: "exporter" },
-  { id: "buyer-hamburg", name: "Bidder: Hamburg Teehaus", role: "exporter" },
-  { id: "buyer-dubai", name: "Bidder: Gulf Blends", role: "exporter" },
+  { id: "estate-mistvale", name: "Mistvale Estate (demo)", role: "estate" },
+  { id: "estate-glenrock", name: "Glenrock Estate (demo)", role: "estate" },
+  { id: "factory-mistvale", name: "Mistvale Factory (demo)", role: "factory" },
+  { id: "broker-demo", name: "Harbourline Brokers (demo)", role: "broker" },
+  { id: "auction-demo", name: "Demo Auction House", role: "auctioneer" },
+  { id: "exporter-demo", name: "Bluepeak Exports (demo)", role: "exporter" },
+  { id: "buyer-a", name: "Bidder A (demo)", role: "exporter" },
+  { id: "buyer-b", name: "Bidder B (demo)", role: "exporter" },
 ];
 
-const KEY = "teatrail-mock-v1";
+const KEY = "teatrail-mock-v2";
 const DAY = 86_400_000;
 
 type PrivateBid = { bidder: string; amountLkr: number; salt: string };
@@ -45,40 +45,40 @@ function seed(): Store {
   });
   const demo: LotWithHistory = {
     lotName: "7a3f9c" + randHex(29),
-    estate: "estate-pedro",
-    estateName: nameOf("estate-pedro"),
+    estate: "estate-mistvale",
+    estateName: nameOf("estate-mistvale"),
     region: "Nuwara Eliya",
     grade: "BOPF",
     weightKg: 500,
     harvestDate: t0,
     stage: "Exported",
-    holder: "exporter-lanka",
-    note: "Shipped to Hamburg, container MSCU 482913",
-    sale: { winner: "buyer-hamburg", priceLkr: 1450, auctionId: "cta-2026-47" },
+    holder: "exporter-demo",
+    note: "Shipped to Hamburg (demo shipment)",
+    sale: { winner: "buyer-a", priceLkr: 1450, auctionId: "demo-047" },
     history: [
-      cp("Harvested", "estate-pedro", "Hand-plucked at 1,868 m, two leaves and a bud", 0),
-      cp("Processed", "factory-pedro", "Orthodox rolling, fired 6h, graded BOPF", 2),
-      cp("Brokered", "broker-ceylon", "Catalogued as lot 42, sale no. 47", 5),
-      cp("Sold", "auction-cta", "Sealed-bid auction closed. Winner Hamburg Teehaus at LKR 1,450/kg", 8),
-      cp("Exported", "exporter-lanka", "Shipped to Hamburg, container MSCU 482913", 11),
+      cp("Harvested", "estate-mistvale", "Hand-plucked at 1,868 m, two leaves and a bud", 0),
+      cp("Processed", "factory-mistvale", "Orthodox rolling, fired 6h, graded BOPF", 2),
+      cp("Brokered", "broker-demo", "Catalogued as lot 42, sale no. 47", 5),
+      cp("Sold", "auction-demo", "Sealed-bid auction closed. Winner Bidder A at LKR 1,450/kg", 8),
+      cp("Exported", "exporter-demo", "Shipped to Hamburg (demo shipment)", 11),
     ],
   };
   const fresh: LotWithHistory = {
     lotName: "b21e04" + randHex(29),
-    estate: "estate-kenilworth",
-    estateName: nameOf("estate-kenilworth"),
+    estate: "estate-glenrock",
+    estateName: nameOf("estate-glenrock"),
     region: "Dimbula",
     grade: "FBOP",
     weightKg: 320,
     harvestDate: Date.now() - 3 * DAY,
     stage: "Brokered",
-    holder: "broker-ceylon",
+    holder: "broker-demo",
     note: "Catalogued as lot 18, sale no. 48",
     sale: null,
     history: [
-      { ...cp("Harvested", "estate-kenilworth", "Morning pluck, west slope", 9) },
-      { ...cp("Processed", "factory-pedro", "Orthodox, graded FBOP", 10) },
-      { ...cp("Brokered", "broker-ceylon", "Catalogued as lot 18, sale no. 48", 11) },
+      { ...cp("Harvested", "estate-glenrock", "Morning pluck, west slope", 9) },
+      { ...cp("Processed", "factory-mistvale", "Orthodox, graded FBOP", 10) },
+      { ...cp("Brokered", "broker-demo", "Catalogued as lot 18, sale no. 48", 11) },
     ],
   };
   return { lots: [demo, fresh], auctions: [], privateBids: {} };
@@ -172,7 +172,7 @@ export const mockSource: TeaTrailSource = {
     if (!lot || lot.stage !== "Brokered") throw new Error("Only Brokered lots can go to auction.");
     await wait();
     const a: AuctionState = {
-      auctionId: "cta-" + randHex(3),
+      auctionId: "demo-" + randHex(3),
       lotName,
       phase: "BIDDING",
       reservePriceLkr: reserveLkr,

@@ -31,7 +31,10 @@ midnight-level-db/
 .idea/
 contracts/cardano/aiken-compile.lock
 
-# Personal AI/dev tool settings (keep local)
+# Personal AI/dev tool settings and installed skills (keep local)
 .gemini/
-.impeccable/
 .claude/settings.local.json
+.claude/skills/
+.agents/
+.impeccable/config.local.json
+.taste-skill/
