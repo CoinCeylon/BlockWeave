@@ -1,7 +1,8 @@
 // Network config and local secrets for the TeaTrail Midnight CLI.
 //
 // Secrets live only in contracts/midnight/.env (git-ignored):
-//   BLOCKFROST_PROJECT_ID            Midnight Preprod project key (nightpreprod...). You add this.
+//   MIDNIGHT_NETWORK                 preprod (default, via Blockfrost) or preview (Midnight's own servers).
+//   BLOCKFROST_PROJECT_ID            Midnight Preprod project key (nightpreprod...). Preprod only.
 //   MIDNIGHT_SEED                    64-hex wallet seed. Created on first `npm run wallet`.
 //   MIDNIGHT_PRIVATE_STATE_PASSWORD  encrypts the local private-state DB. Created on first run.
 //
@@ -31,7 +32,7 @@ export const logger = pino({
 });
 
 export type NetworkConfig = {
-  name: 'preprod' | 'local';
+  name: 'preprod' | 'preview' | 'local';
   networkId: string;
   indexer: string;
   indexerWS: string;
@@ -65,7 +66,22 @@ export function getConfig(): NetworkConfig {
       explorer: '',
     };
   }
-  if (network !== 'preprod') throw new Error(`MIDNIGHT_NETWORK must be 'preprod' or 'local', got '${network}'.`);
+  if (network === 'preview') {
+    // Midnight's own Preview servers: no Blockfrost key needed. Same endpoints as
+    // midnightntwrk/midnight-examples toolchain.json (24 Nov 2026).
+    return {
+      name: 'preview',
+      networkId: 'preview',
+      indexer: 'https://indexer.preview.midnight.network/api/v4/graphql',
+      indexerWS: 'wss://indexer.preview.midnight.network/api/v4/graphql/ws',
+      node: 'https://rpc.preview.midnight.network',
+      nodeWS: 'wss://rpc.preview.midnight.network',
+      proofServer,
+      faucet: 'https://midnight-tmnight-preview.nethermind.dev/',
+      explorer: '',
+    };
+  }
+  if (network !== 'preprod') throw new Error(`MIDNIGHT_NETWORK must be 'preprod', 'preview' or 'local', got '${network}'.`);
   const key = process.env['BLOCKFROST_PROJECT_ID']?.trim();
   if (!key) {
     throw new Error(

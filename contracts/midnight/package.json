@@ -9,7 +9,8 @@
     "typecheck": "tsc -p cli/tsconfig.json",
     "wallet": "tsx cli/wallet-setup.ts",
     "demo": "tsx cli/auction-demo.ts",
-    "status": "tsx cli/status.ts"
+    "status": "tsx cli/status.ts",
+    "doctor": "tsx cli/doctor.ts"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.21.0",
@@ -23,6 +24,8 @@
     "@midnight-ntwrk/midnight-js-utils": "5.0.1",
     "@midnight-ntwrk/testkit-js": "5.0.1",
     "@midnightntwrk/wallet-sdk": "2.0.1",
+    "@midnightntwrk/wallet-sdk-dust-wallet": "5.1.0",
+    "effect": "3.22.5",
     "pino": "^9.0.0",
     "pino-pretty": "^13.0.0",
     "rxjs": "^7.8.2",

@@ -56,7 +56,7 @@ export async function startSession({ needFunds = true, requireProofServer = true
   });
 
   const syncTimeoutMs = Number(process.env['MIDNIGHT_SYNC_TIMEOUT_MS'] ?? (isRemote ? 3 * 60 * 60_000 : 10 * 60_000));
-  logger.info(isRemote ? 'Syncing with Preprod. The first sync of a new wallet can take a while; later runs are quick.' : 'Syncing...');
+  logger.info(isRemote ? `Syncing with ${config.name}. The first sync of a new wallet can take a while; later runs are quick.` : 'Syncing...');
   await syncWallet(logger, wallet.wallet, syncTimeoutMs);
 
   if (isRemote && needFunds) {

@@ -61,6 +61,9 @@ import {
   logger as testkitLogger,
 } from '@midnight-ntwrk/testkit-js';
 import * as Rx from 'rxjs';
+import { Option } from 'effect';
+import { findDustBoundary } from './dust-boundary.js';
+import type { DustWalletTypes } from '@midnightntwrk/wallet-sdk-dust-wallet';
 import type { Logger } from 'pino';
 
 // A proven, not yet bound ledger 9 transaction: what a contract call or deploy
@@ -180,7 +183,7 @@ export class MidnightWalletProvider implements Ledger9WalletProvider {
         ? base.withMnemonic(secret.value)
         : base.withSeed(secret.value);
 
-    skipLedgerV8DustHistory(builder);
+    await useDustTimelineStart(logger, builder, env.walletNetworkId);
 
     const built = await builder.buildWithoutStarting();
     const { seeds, keystore } = built;
@@ -210,8 +213,33 @@ export async function syncWallet(
   wallet: WalletFacade,
   timeout = 300_000,
 ): Promise<FacadeState> {
-  logger.info('Syncing wallet...');
+  logger.info('Syncing wallet... (progress is printed every 10 seconds)');
   let emissionCount = 0;
+  let lastLog = 0;
+  // TeaTrail change: one progress line every 10 s with a percentage per sub-wallet,
+  // instead of a line per update (thousands on a fresh Preprod wallet).
+  const started = Date.now();
+  const firstApplied = new Map<string, number>();
+  const pct = (name: string, progress: unknown, done: boolean): string => {
+    if (done) return `${name} done`;
+    const p = (progress ?? {}) as {
+      appliedIndex?: number | bigint;
+      highestIndex?: number | bigint;
+      highestRelevantIndex?: number | bigint;
+      highestRelevantWalletIndex?: number | bigint;
+      isConnected?: boolean;
+    };
+    const applied = Number(p.appliedIndex ?? 0);
+    // The DUST wallet's event sync records its target in highestRelevantWalletIndex (the indexer's maxId),
+    // not highestIndex, so take whichever field is filled in.
+    const highest = Math.max(Number(p.highestIndex ?? 0), Number(p.highestRelevantIndex ?? 0), Number(p.highestRelevantWalletIndex ?? 0));
+    if (!highest) return `${name} starting${p.isConnected === false ? ' (not connected)' : ''}`;
+    if (!firstApplied.has(name)) firstApplied.set(name, applied);
+    const mins = (Date.now() - started) / 60_000;
+    const rate = mins > 0.2 ? (applied - firstApplied.get(name)!) / mins : 0; // events per minute
+    const eta = rate > 0 ? `, ~${Math.ceil((highest - applied) / rate)} min left` : '';
+    return `${name} ${Math.min(99.9, (applied / highest) * 100).toFixed(1)}% (${applied}/${highest}${eta})`;
+  };
   const state = await Rx.firstValueFrom(
     wallet.state().pipe(
       Rx.tap((state: FacadeState) => {
@@ -219,18 +247,14 @@ export async function syncWallet(
         const shielded = isProgressStrictlyComplete(state.shielded.progress);
         const unshielded = isProgressStrictlyComplete(state.unshielded.progress);
         const dust = isProgressStrictlyComplete(state.dust.progress);
-        logger.info(
-          `Wallet sync [${emissionCount}]: shielded=${shielded}, unshielded=${unshielded}, dust=${dust}`,
-        );
-        if (!shielded) {
-          logger.debug(`  shielded.progress: ${JSON.stringify(state.shielded.progress)}`);
+        const now = Date.now();
+        if (now - lastLog >= 10_000 || (shielded && unshielded && dust)) {
+          lastLog = now;
+          logger.info(
+            `Wallet sync: ${pct('dust', state.dust.progress, dust)} | ${pct('shielded', state.shielded.progress, shielded)} | ${pct('unshielded', state.unshielded.progress, unshielded)}`,
+          );
         }
-        if (!unshielded) {
-          logger.debug(`  unshielded.progress: ${JSON.stringify(state.unshielded.progress)}`);
-        }
-        if (!dust) {
-          logger.debug(`  dust.progress: ${JSON.stringify(state.dust.progress)}`);
-        }
+        logger.debug(`Wallet sync [${emissionCount}]: shielded=${shielded}, unshielded=${unshielded}, dust=${dust}`);
       }),
       Rx.filter(
         (state: FacadeState) =>
@@ -345,6 +369,68 @@ function stateFileFor(networkId: string, masterSeed: string): string | undefined
  */
 function skipLedgerV8DustHistory(builder: FluentWalletBuilder): void {
   (builder as unknown as { config: { skipLedgerV8DustHistory?: boolean } }).config.skipLedgerV8DustHistory = true;
+}
+
+
+// ---------------------------------------------------------------------------
+// TeaTrail change (27 Nov 2026). With skipLedgerV8DustHistory the SDK searches
+// the indexer for the ledger 9 boundary on every fresh start, but gives up after
+// a hard-coded 30 s and then silently replays all ledger 8 DUST history (~70 min
+// or much more). Over Blockfrost from Sri Lanka the search can take longer than
+// 30 s, which left the first sync stuck on "dust starting". The boundary is a
+// fixed point of the chain (Preprod crossed it once, 9 Nov 2026), so we run the
+// same search once (cli/dust-boundary.ts: 60 s per probe, 3 tries, logged), save
+// the answer in .wallet-state/, and
+// hand it to the wallet through the SDK's own `dustTimelineStartProbe` hook.
+// Nightcast (LearnMidnight/Nightcast, 15 Nov 2026) hit the same 30 s limit and
+// fixed it the same way.
+// If the search finds nothing we fall back to the SDK's behaviour.
+
+type DustTimelineStart = DustWalletTypes.DustTimelineStart;
+
+async function useDustTimelineStart(logger: Logger, builder: FluentWalletBuilder, networkId: string): Promise<void> {
+  const config = (builder as unknown as { config: Record<string, unknown> & { forks: { v9: bigint } } }).config;
+  if (networkId === 'undeployed' || process.env['MIDNIGHT_DUST_TIMELINE'] === 'sdk') {
+    skipLedgerV8DustHistory(builder);
+    return;
+  }
+  const file = join(STATE_DIR, `${networkId}-dust-timeline-start.json`);
+  let start: DustTimelineStart | undefined;
+  if (existsSync(file)) {
+    try {
+      const saved = JSON.parse(readFileSync(file, 'utf8')) as { cursor: string; version: string };
+      start = { cursor: BigInt(saved.cursor), version: BigInt(saved.version) as DustTimelineStart['version'] };
+    } catch (error) {
+      logger.warn(`Ignoring unreadable ${file}: ${String(error)}`);
+    }
+  }
+  if (!start) {
+    logger.info(`One-time lookup (${networkId}): where the DUST history crosses the ledger 9 upgrade (can take a few minutes)...`);
+    const started = Date.now();
+    const conn = config['indexerClientConnection'] as { indexerWsUrl: string };
+    let found: Awaited<ReturnType<typeof findDustBoundary>>;
+    try {
+      found = await findDustBoundary(conn.indexerWsUrl, BigInt(config.forks.v9), logger);
+    } catch (error) {
+      logger.warn(String(error instanceof Error ? error.message : error));
+      found = undefined;
+    }
+    const secs = Math.round((Date.now() - started) / 1000);
+    if (!found) {
+      logger.warn(`DUST boundary lookup found nothing after ${secs}s; using the SDK default (may replay old DUST history).`);
+      skipLedgerV8DustHistory(builder);
+      return;
+    }
+    start = { cursor: found.cursor, version: found.version as DustTimelineStart['version'] };
+    mkdirSync(STATE_DIR, { recursive: true });
+    writeFileSync(file, JSON.stringify({ cursor: start.cursor.toString(), version: start.version.toString() }, null, 2) + '\n');
+    logger.info(`DUST boundary found in ${secs}s (event ${start.cursor}); saved for next time.`);
+  } else {
+    logger.info(`Using saved DUST boundary (event ${start.cursor}).`);
+  }
+  const fixed = start;
+  config['skipLedgerV8DustHistory'] = false; // so the SDK doesn't replace our probe with its 30 s search
+  config['dustTimelineStartProbe'] = () => Promise.resolve(Option.some(fixed));
 }
 
 /** The three sub-wallets restored from a snapshot, configured as testkit's WalletFactory configures new ones. */
