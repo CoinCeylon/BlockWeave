@@ -1,0 +1,11 @@
+{
+  "network": "preview",
+  "address": "d9dc9e28392fb945c40fd0090cae37fc8df89fef609c5c9f5655baf668e6af99",
+  "lotId": "8188e3fad9c6b4378fa804eaa2372ec5df5a1a8a1dfc6bd574564043c021b03f",
+  "reserve": 1200,
+  "deployedAt": "2026-11-27T15:52:38.463Z",
+  "result": {
+    "winnerPk": "718dd459ca4afa2a55064692fd69bf1fda0f2d5a4ad1a4915f02df79a4d60270",
+    "winningPrice": 1450
+  }
+}

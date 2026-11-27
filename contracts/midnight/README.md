@@ -73,7 +73,9 @@ npm run status              # public state of the last auction (or: npm run stat
 | Command | What it does |
 |---|---|
 | `npm run wallet` | Creates/syncs the CLI wallet, waits for faucet tNIGHT, registers it for DUST (works around Lace's DUST bug), waits for ~60 DUST |
-| `npm run demo` | One full auction for a random lot (`-- --lot <64 hex>` for a real Cardano lot name, `-- --reserve 1200`). About 9 transactions |
+| `npm run demo` | One full auction for a random lot (`-- --lot <64 hex>` for a real Cardano lot name, `-- --reserve 1200`). About 9 transactions. Waits out indexer/node hiccups (e.g. HTTP 503) and carries on from the chain's state |
+| `npm run demo -- --resume [address]` | Carries on an auction that stopped half-way (default: the most recent one in `cli/deployments/`) |
+| `npm run doctor` | Checks every connection the wallet and demo need; key hidden, safe to paste |
 | `npm run status` | Reads the public ledger from the indexer. No wallet needed. This is all the world can see |
 
 How it works:
