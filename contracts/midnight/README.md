@@ -1,7 +1,8 @@
 # Midnight: sealed-bid auction (Person B)
 
 `src/sealed_auction.compact` **compiles** with Compact toolchain 0.36.1 (Preprod, ledger 9)
-and passes 11 local simulator tests. Next: deploy to Preprod from a CLI script.
+and passes 11 local simulator tests. `cli/` deploys it to Preprod and runs a full
+3-bidder auction (Midnight.js 5.0.1, wallet SDK 2.0.1). Not yet run on Preprod.
 
 ## How the auction keeps bids secret
 
@@ -24,11 +25,11 @@ The client claims automatically, so the highest bid always claims first.
 
 ## Setup
 
-1. Follow https://docs.midnight.network/getting-started: install the Compact
-   toolchain, then run the proof server with Docker on port 6300.
-2. Get tNIGHT from the Preprod faucet: https://docs.midnight.network/guides/acquire-tokens
-3. Run one official example end to end first (zkloan or leaderboard), so you
-   know your toolchain works before you debug our contract.
+1. WSL/Linux, Node 22, Compact toolchain `compact update 0.36.1`, Docker.
+   See `claude/midnight-build-guide.md` in the team project for Windows steps.
+2. Don't use the old official starters (`example-counter`, `create-mn-app`):
+   they target the pre-upgrade network. The maintained reference is
+   https://github.com/midnightntwrk/midnight-examples (our `cli/wallet.ts` comes from it).
 
 ## Build and test (no wallet or network needed)
 
@@ -50,11 +51,60 @@ The tests run the real compiled circuits against an in-memory ledger. The privac
 test checks that losing bid amounts appear nowhere in the public state, circuit
 inputs/outputs or public transcripts, and that the winning price does.
 
+## Run on Preprod
+
+You need: the full build (`npm run compile`), the proof server running, and a
+Blockfrost **Midnight Preprod** project key.
+
+```bash
+# terminal 1: proof server (leave running)
+docker run -p 6300:6300 midnightntwrk/proof-server:9.0.2
+
+# terminal 2
+cd contracts/midnight
+cp .env.example .env        # then put your nightpreprod... key in it
+npm run wallet              # 1st time: creates a wallet, prints its mn_addr_preprod1... address
+                            # fund that address at https://midnight-tmnight-preprod.nethermind.dev/
+                            # it then registers DUST and waits until there's enough to deploy
+npm run demo                # deploy + 3 sealed bids + rule checks + reveal + claim
+npm run status              # public state of the last auction (or: npm run status -- <address>)
+```
+
+| Command | What it does |
+|---|---|
+| `npm run wallet` | Creates/syncs the CLI wallet, waits for faucet tNIGHT, registers it for DUST (works around Lace's DUST bug), waits for ~60 DUST |
+| `npm run demo` | One full auction for a random lot (`-- --lot <64 hex>` for a real Cardano lot name, `-- --reserve 1200`). About 9 transactions |
+| `npm run status` | Reads the public ledger from the indexer. No wallet needed. This is all the world can see |
+
+How it works:
+- **One wallet pays every fee.** A party's identity is the secret key in its private
+  state (`localSk` witness), not the wallet. The script keeps 4 private states:
+  `auctioneer`, `bidder-a/b/c`.
+- **Rule checks cost nothing:** a bid below reserve, a bidder running the reveal and a
+  losing bidder claiming all fail in local circuit execution, before any proof or fee.
+- **Secrets stay local:** `.env` (seed, Blockfrost key, DB password), `midnight-level-db/`
+  (encrypted private states) and `.wallet-state/` are git-ignored.
+  `cli/deployments/<address>.json` holds only public facts (lot, reserve, winner pk,
+  price), so commit it to share contract addresses with the team.
+- First sync of a new wallet on Preprod can take a while; later runs reuse
+  `.wallet-state/` and are quick.
+
+If it fails:
+
+| Error | Fix |
+|---|---|
+| `Proof server not reachable` | Start the docker command above |
+| `No proving keys` | `npm run compile` (the full build) |
+| `BLOCKFROST_PROJECT_ID ...` / HTTP 403 | Midnight Preprod key (`nightpreprod…`) in `.env`, not the Cardano one |
+| `Wallet.InsufficientFunds` / `could not balance dust` | Not enough DUST yet: re-run `npm run wallet` and wait |
+| Repeated `Wallet.Sync` lines | Normal on the first sync, leave it running |
+
 ## This week's checklist
 
-- [ ] Toolchain + proof server running; an official example deployed to Preprod
+- [ ] Toolchain + proof server running on Kavishan's PC; `npm test` and `npm run compile` pass there
 - [x] `sealed_auction.compact` compiles (0.36.1)
 - [x] Local simulator tests: 3 bidders, reveal, claim, rule checks, privacy
-- [ ] CLI script on Preprod: deploy, 3 bidders (one funded wallet, 3 private states), startReveal, lowerThreshold, claimWin
-- [ ] Confirm on Preprod (indexer) what the simulator test already shows: losing amounts never appear
+- [x] CLI script written: deploy, 3 bidders (one funded wallet, 3 private states), startReveal, lowerThreshold, claimWin
+- [ ] `npm run wallet` + `npm run demo` succeed on Preprod
+- [ ] Confirm on Preprod (`npm run status` + explorer) what the simulator test already shows: losing amounts never appear
 - [ ] Hand Person C a small TS module: `deployAuction`, `placeBid`, `getState`, `claimWin`

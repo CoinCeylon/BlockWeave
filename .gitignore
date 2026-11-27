@@ -23,6 +23,10 @@ contracts/cardano/artifacts/
 contracts/midnight/managed/
 contracts/midnight/dist/
 midnight-level-db/
+# wallet sync state from the Midnight CLI (can contain key material)
+.wallet-state/
+# testkit log files (can contain endpoint URLs with the Blockfrost key)
+contracts/midnight/logs/
 
 # OS / editor
 .DS_Store

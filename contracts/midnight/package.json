@@ -6,12 +6,41 @@
     "compile": "compact compile src/sealed_auction.compact managed/sealed_auction",
     "compile:fast": "compact compile --skip-zk src/sealed_auction.compact managed/sealed_auction",
     "test": "node --test test/*.test.mjs",
-    "typecheck": "tsc --noEmit --strict --target es2022 --module nodenext --moduleResolution nodenext --skipLibCheck --lib es2022,dom src/witnesses.ts"
+    "typecheck": "tsc -p cli/tsconfig.json",
+    "wallet": "tsx cli/wallet-setup.ts",
+    "demo": "tsx cli/auction-demo.ts",
+    "status": "tsx cli/status.ts"
   },
   "dependencies": {
-    "@midnight-ntwrk/compact-runtime": "0.21.0"
+    "@midnight-ntwrk/compact-runtime": "0.21.0",
+    "@midnight-ntwrk/midnight-js-contracts": "5.0.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "5.0.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "5.0.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "5.0.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "5.0.1",
+    "@midnight-ntwrk/midnight-js-protocol": "5.0.1",
+    "@midnight-ntwrk/midnight-js-types": "5.0.1",
+    "@midnight-ntwrk/midnight-js-utils": "5.0.1",
+    "@midnight-ntwrk/testkit-js": "5.0.1",
+    "@midnightntwrk/wallet-sdk": "2.0.1",
+    "pino": "^9.0.0",
+    "pino-pretty": "^13.0.0",
+    "rxjs": "^7.8.2",
+    "ws": "^8.14.2"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.9",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "overrides": {
+    "@midnightntwrk/wallet-sdk": "2.0.1",
+    "@midnightntwrk/ledger-v9": "1.0.2",
+    "@midnightntwrk/onchain-runtime-v4": "4.0.2",
+    "@midnightntwrk/zkir-v3": "3.2.1"
   }
 }
